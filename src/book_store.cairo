@@ -24,14 +24,30 @@ pub mod BookStore {
         StoragePointerReadAccess, StoragePointerWriteAccess, Vec, VecTrait, MutableVecTrait, Map,
         StorageMapReadAccess, StorageMapWriteAccess
     };
-
     use core::starknet::{ContractAddress, get_caller_address};
+    use admin::PrivateTrait;
+    use bookshop::admin::admin::admin_component;
+
+    component!(path: admin, storage: admin_storage, event: AdminEvents);
+
+    #[abi(embed_v0)]
+    impl AdminImpl = admin_component::Admin<ContractState>;
+
+    impl AdminInternalImpl = admin_component::PrivateImpl<ContractState>;
 
     #[storage]
     struct Storage {
         books: Map<felt252, Book>, // map book_id => book Struct
         librarian: ContractAddress,
         books_stored: Vec<(felt252, Book)>,
+        #[substorage(v0)]
+        admin_storage: admin_component::Storage,
+    }
+
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    enum Event {
+        AdminEvents: admin_component::Event,
     }
 
     #[event]
@@ -62,6 +78,7 @@ pub mod BookStore {
     #[constructor]
     fn constructor(ref self: ContractState, librarian: ContractAddress) {
         self.librarian.write(librarian);
+        self.admin_storage.initializer(librarian);
     }
 
     #[abi(embed_v0)]

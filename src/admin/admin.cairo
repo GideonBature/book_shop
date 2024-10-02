@@ -25,6 +25,36 @@ pub mod admin_component {
         owner: ContractAddress,
     }
 
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    enum Event {
+        AdminSet: AdminSet,
+        AdminRenounced: AdminRenounced,
+        OwnershipInitialized: OwnerInitialized,
+        OwnershipTransferred: OwnershipTransferred,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct AdminSet {
+        new_admin: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct AdminRenounced {
+        previous_admin: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct OwnerInitialized {
+        new_owner: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct OwnershipTransferred {
+        previous_owner: ContractAddress,
+        new_owner: ContractAddress,
+    }
+
     #[embeddable_as(Admin)]
     impl AdminImpl<TContractState, +HasComponent<TContractState>> of IAdmin<ComponentState<TContractState>> {
 
@@ -40,13 +70,18 @@ pub mod admin_component {
             let owner = self.owner.read();
             assert(caller == owner, Errors::NOT_OWNER);
             self.admin.write(new_admin);
+
+            self.emit(Event::AdminSet { new_admin });
         }
 
         fn renounce_admin(ref self: ComponentState<TContractState>) {
             let caller = get_caller_address();
             let owner = self.owner.read();
+            let previous_admin = self.admin.read();
             assert(caller == owner, Errors::NOT_OWNER);
             self.admin.write(Zero::zero());
+
+            self.emit(Event::AdminRenounced { previous_admin });
         }
     }
 
@@ -54,6 +89,8 @@ pub mod admin_component {
     pub impl PrivateImpl<TContractState, +HasComponent<TContractState>> of PrivateTrait<TContractState> {
         fn initializer(ref self: ComponentState<TContractState>, owner: ContractAddress) {
             self._transfer_ownership(owner);
+
+            self.emit(Event::OwnershipInitialized { new_owner: owner });
         }
 
         fn assert_only_owner(self: @ComponentState<TContractState>) {
@@ -66,6 +103,8 @@ pub mod admin_component {
         fn _transfer_ownership(ref self: ComponentState<TContractState>, new_owner: ContractAddress) {
             let previous_owner = self.owner.read();
             self.owner.write(new_owner);
+
+            self.emit(Event::OwnershipTransferred { previous_owner, new_owner });
         }
     }
 }
